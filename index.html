@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f1f3f6">
+  <meta name="description" content="A private, on-device AI chat that can run offline in Chrome.">
+  <title>Local AI Studio</title>
+  <link rel="icon" href="./app-icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./app.webmanifest">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside id="sidebar" class="sidebar" aria-label="Chat navigation">
+      <div class="sidebar-top">
+        <a class="brand" href="./" aria-label="Local AI Studio home">
+          <span class="brand-mark" aria-hidden="true">L</span>
+          <span class="brand-copy">
+            <strong>Local AI</strong>
+            <span>Private workspace</span>
+          </span>
+        </a>
+        <button id="newChatBtn" class="new-chat-button" type="button">
+          <span class="plus-mark" aria-hidden="true">+</span>
+          <span>New conversation</span>
+        </button>
+        <div class="section-heading">
+          <span>Conversations</span>
+          <span id="conversation-count" class="count-pill">0</span>
+        </div>
+        <div id="history-list" class="history-list" aria-label="Saved conversations"></div>
+      </div>
+
+      <div class="sidebar-bottom">
+        <div class="local-model-card">
+          <span class="local-indicator" aria-hidden="true"></span>
+          <div>
+            <strong>Runs on this device</strong>
+            <span>Llama 3.2 · 3B Instruct</span>
+          </div>
+        </div>
+        <button id="offlineGuideBtn" class="sidebar-link" type="button">
+          <span class="link-mark" aria-hidden="true">i</span>
+          <span>Offline setup guide</span>
+        </button>
+        <p class="sidebar-note">Your chats and training notes stay in this browser.</p>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <button id="sidebarToggle" class="icon-button mobile-menu" type="button"
+          aria-label="Open conversation list" aria-expanded="false" aria-controls="sidebar">
+          <span>Menu</span>
+        </button>
+        <div class="model-heading">
+          <span class="eyebrow">ON-DEVICE MODEL</span>
+          <strong>Llama 3.2 3B Instruct</strong>
+        </div>
+        <div class="topbar-actions">
+          <button id="trainingBtn" class="toolbar-button" type="button">
+            <span class="toolbar-mark" aria-hidden="true">T</span>
+            <span>AI training</span>
+            <span id="training-count" class="count-pill">0</span>
+          </button>
+          <button id="appearanceBtn" class="toolbar-button" type="button">
+            <span class="toolbar-mark palette-mark" aria-hidden="true"></span>
+            <span>Colors</span>
+          </button>
+          <button id="loadBtn" class="load-button" type="button">
+            <span class="button-status-dot" aria-hidden="true"></span>
+            <span>Load local model</span>
+          </button>
+        </div>
+      </header>
+
+      <section id="gpu-alert" class="notice notice-warning" role="status" hidden>
+        <strong>WebGPU is not available.</strong>
+        <span>Use an up-to-date Chrome browser on a device with WebGPU graphics support.</span>
+      </section>
+
+      <section class="engine-status" aria-live="polite">
+        <span id="status-dot" class="status-dot" aria-hidden="true"></span>
+        <span id="status-text">Ready when you are. Load the local model to begin.</span>
+        <span class="private-badge">No cloud AI</span>
+        <progress id="progress" max="100" value="0" hidden aria-label="Model loading progress"></progress>
+      </section>
+
+      <section id="chat-container" class="chat-scroll" aria-label="Conversation" aria-live="polite"></section>
+
+      <footer class="composer-area">
+        <form id="composerForm" class="composer">
+          <label class="visually-hidden" for="userInput">Message the local AI</label>
+          <textarea id="userInput" rows="1" maxlength="5000" placeholder="Load the local model to start a conversation…" disabled></textarea>
+          <button id="sendBtn" class="send-button" type="submit" disabled>
+            <span>Send</span>
+            <span class="send-arrow" aria-hidden="true">↗</span>
+          </button>
+        </form>
+        <p class="composer-caption">Responses are generated on this device. Do not close Chrome while the model is loading.</p>
+      </footer>
+    </main>
+  </div>
+
+  <div id="trainingModal" class="modal-overlay" role="presentation" hidden>
+    <section class="modal-content training-modal" role="dialog" aria-modal="true" aria-labelledby="trainingTitle">
+      <header class="modal-header">
+        <div>
+          <span class="eyebrow">SAVED KNOWLEDGE</span>
+          <h1 id="trainingTitle">Train the AI on a subject</h1>
+        </div>
+        <button id="closeTrainingModal" class="close-button" type="button" aria-label="Close training">×</button>
+      </header>
+      <p class="modal-description">
+        Add detailed notes, then ask the model to explain them back. The notes are saved in this browser and included as reference when relevant.
+        This teaches through saved context; it does not change the model's weights.
+      </p>
+      <div id="training-result" class="learning-result" hidden aria-live="polite">
+        <div class="result-heading">
+          <div>
+            <span class="eyebrow">WHAT THE AI UNDERSTOOD</span>
+            <h2 id="result-title"></h2>
+          </div>
+          <span id="reviewed-badge" class="reviewed-badge" hidden>Checked</span>
+        </div>
+        <p id="result-summary" class="result-summary"></p>
+        <p class="review-hint">Compare this explanation with your notes to check that the key ideas are right.</p>
+        <button id="reviewSummaryBtn" class="text-button" type="button">Mark explanation checked</button>
+      </div>
+      <form id="trainingForm" class="training-form">
+        <label for="trainingTitleInput">Subject</label>
+        <input id="trainingTitleInput" type="text" maxlength="120" placeholder="For example: How photosynthesis works" required>
+        <label for="trainingNotesInput">Detailed notes</label>
+        <textarea id="trainingNotesInput" maxlength="50000" rows="7" placeholder="Paste the facts, steps, definitions, examples, or rules you want the AI to use…" required></textarea>
+        <div class="field-footnote">
+          <span>Up to 50,000 characters. Long notes are reviewed in sections.</span>
+          <span id="notes-character-count">0 / 50,000</span>
+        </div>
+        <button id="learnBtn" class="primary-action" type="submit" disabled>
+          <span>Learn and explain back</span>
+          <span class="send-arrow" aria-hidden="true">↗</span>
+        </button>
+      </form>
+      <div class="saved-training">
+        <div class="saved-heading">
+          <h2>Saved subjects</h2>
+          <span id="saved-topic-count" class="count-pill">0</span>
+        </div>
+        <div id="training-list" class="training-list"></div>
+      </div>
+    </section>
+  </div>
+
+  <div id="appearanceModal" class="modal-overlay" role="presentation" hidden>
+    <section class="modal-content compact-modal" role="dialog" aria-modal="true" aria-labelledby="appearanceTitle">
+      <header class="modal-header">
+        <div>
+          <span class="eyebrow">PERSONALIZE</span>
+          <h1 id="appearanceTitle">Choose your colors</h1>
+        </div>
+        <button id="closeAppearanceModal" class="close-button" type="button" aria-label="Close colors">×</button>
+      </header>
+      <p class="modal-description">Your choices are saved in this browser and apply to the whole workspace.</p>
+      <label class="color-setting" for="backgroundColor">
+        <span><strong>Background</strong><small>Workspace and navigation</small></span>
+        <input id="backgroundColor" type="color" value="#f1f3f6">
+      </label>
+      <label class="color-setting" for="buttonColor">
+        <span><strong>Buttons</strong><small>Primary actions and highlights</small></span>
+        <input id="buttonColor" type="color" value="#365d91">
+      </label>
+      <button id="resetColorsBtn" class="secondary-action" type="button">Reset to original colors</button>
+    </section>
+  </div>
+
+  <div id="offlineModal" class="modal-overlay" role="presentation" hidden>
+    <section class="modal-content compact-modal" role="dialog" aria-modal="true" aria-labelledby="offlineTitle">
+      <header class="modal-header">
+        <div>
+          <span class="eyebrow">CHROMEBOOK SETUP</span>
+          <h1 id="offlineTitle">Prepare for offline use</h1>
+        </div>
+        <button id="closeOfflineModal" class="close-button" type="button" aria-label="Close offline guide">×</button>
+      </header>
+      <p class="modal-description">You do not need Python, Linux, or SSH. Chrome needs a one-time online setup so it can keep the app and model in this browser.</p>
+      <ol class="offline-steps">
+        <li><strong>Open this app in Chrome while online.</strong> Use its secure web address; do not open index.html directly from the Files app.</li>
+        <li><strong>Install the app from Chrome's menu</strong> if the install option is available. This keeps the app screen available offline.</li>
+        <li><strong>Load the model and wait for Ready.</strong> The first model load needs about 3.4 GB of model files and additional working memory.</li>
+        <li><strong>Test it before you need it.</strong> Turn off Wi-Fi, reopen the app, and send a test message. Keep enough free storage and do not clear Chrome site data.</li>
+      </ol>
+      <p class="offline-caution">Offline storage is tied to this Chrome profile and this app's web address. Chromebook hardware must support WebGPU and have enough memory to run the 3B model.</p>
+      <button id="closeOfflineGuide" class="primary-action" type="button">Got it</button>
+    </section>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script defer src="./vendor/webllm/web-llm.js"></script>
+  <script defer src="./script.js"></script>
+</body>
+</html>
